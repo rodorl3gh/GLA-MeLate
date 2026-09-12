@@ -25,6 +25,7 @@ import {
 import NumberBall from "./NumberBall";
 import StatsPanel from "./StatsPanel";
 import AnalysisPanel from "./AnalysisPanel";
+import CollapsibleSection from "./CollapsibleSection";
 import type {
   DataSource,
   Draw,
@@ -527,12 +528,6 @@ export default function MelateApp() {
                     <span className="rounded-md border border-obsidian-600/50 bg-obsidian-800/50 px-2 py-0.5">
                       {combo.metrics.odds} imp / {6 - combo.metrics.odds} par
                     </span>
-                    <span className="rounded-md border border-obsidian-600/50 bg-obsidian-800/50 px-2 py-0.5">
-                      {combo.metrics.overdueHits} atrasados
-                    </span>
-                    <span className="rounded-md border border-obsidian-600/50 bg-obsidian-800/50 px-2 py-0.5">
-                      {combo.metrics.hotHits} calientes
-                    </span>
                     <span
                       className={`rounded-md border px-2 py-0.5 ${
                         combo.metrics.popularity < 0.4
@@ -550,53 +545,55 @@ export default function MelateApp() {
           )}
         </section>
 
-        <section className="mb-8">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="section-badge bg-emerald-500/10 text-emerald-300">
-              <TrendingUp size={13} /> Análisis estadístico
-            </span>
-            {stats && (
-              <span className="font-mono text-[11px] text-text-muted">{stats.windowLabel}</span>
+        <div className="space-y-3">
+          <CollapsibleSection
+            icon={<TrendingUp size={13} />}
+            title="Análisis estadístico"
+            badgeClass="bg-emerald-500/10 text-emerald-300"
+            summary={
+              stats
+                ? `${stats.windowLabel} · calientes ${stats.hot.slice(0, 5).join(" ")} · fríos ${stats.cold
+                    .slice(0, 5)
+                    .join(" ")} · suma ${stats.sum.commonRange[0]}–${stats.sum.commonRange[1]}`
+                : "Calculando…"
+            }
+          >
+            {loadingStats || !stats ? (
+              <div className="flex items-center justify-center gap-3 py-8 text-text-muted">
+                <Loader2 size={18} className="animate-spin" />
+                Calculando estadísticas…
+              </div>
+            ) : (
+              <StatsPanel stats={stats} />
             )}
-          </div>
+          </CollapsibleSection>
 
-          {loadingStats || !stats ? (
-            <div className="glass-card flex items-center justify-center gap-3 p-12 text-text-muted">
-              <Loader2 size={18} className="animate-spin" />
-              Calculando estadísticas…
-            </div>
-          ) : (
-            <StatsPanel stats={stats} />
-          )}
-        </section>
+          <CollapsibleSection
+            icon={<FlaskConical size={13} />}
+            title="Rigor estadístico"
+            badgeClass="bg-pink-500/10 text-pink-300"
+            summary="Test chi-cuadrado de uniformidad · backtesting contra el azar"
+          >
+            <AnalysisPanel
+              game={game}
+              windowValue={windowValue}
+              strategy={strategy}
+              antiPopularity={antiPopularity}
+            />
+          </CollapsibleSection>
 
-        <section className="mb-8">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <span className="section-badge bg-pink-500/10 text-pink-300">
-              <FlaskConical size={13} /> Rigor estadístico
-            </span>
-            <span className="font-mono text-[11px] text-text-muted">
-              validación sin fuga de información
-            </span>
-          </div>
-          <AnalysisPanel
-            game={game}
-            windowValue={windowValue}
-            strategy={strategy}
-            antiPopularity={antiPopularity}
-          />
-        </section>
-
-        <section>
-          <div className="mb-3 flex items-center gap-2">
-            <span className="section-badge bg-orange-500/10 text-orange-300">
-              <History size={13} /> Últimos sorteos
-            </span>
-          </div>
-
-          <div className="glass-card overflow-hidden">
+          <CollapsibleSection
+            icon={<History size={13} />}
+            title="Últimos sorteos"
+            badgeClass="bg-orange-500/10 text-orange-300"
+            summary={
+              data
+                ? `${data.recent.length} sorteos recientes · último #${data.latest[0]?.concurso ?? "—"}`
+                : "Cargando…"
+            }
+          >
             {loadingData || !data ? (
-              <div className="flex items-center justify-center gap-3 p-12 text-text-muted">
+              <div className="flex items-center justify-center gap-3 py-8 text-text-muted">
                 <Loader2 size={18} className="animate-spin" />
                 Cargando histórico…
               </div>
@@ -649,8 +646,8 @@ export default function MelateApp() {
                 </table>
               </div>
             )}
-          </div>
-        </section>
+          </CollapsibleSection>
+        </div>
       </main>
 
       <footer className="relative z-10 border-t border-obsidian-600/40 px-4 py-8 sm:px-6">

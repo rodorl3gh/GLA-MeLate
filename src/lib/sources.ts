@@ -80,8 +80,17 @@ export function parseCsv(text: string): Draw[] {
 
   const header = lines[0].split(",").map((h) => h.trim().toUpperCase());
   const col = (name: string) => header.indexOf(name);
-  const numCols = ["R1", "R2", "R3", "R4", "R5", "R6"].map(col);
-  const addCol = col("R7");
+
+  // Los encabezados cambian según el juego: Melate/Revancha usan R1..R7 y
+  // Revanchita usa F1..F6. Detectamos las columnas de números de forma genérica.
+  const numberCols = header
+    .map((h, i) => ({ h, i }))
+    .filter(({ h }) => /^[RF]\d+$/.test(h))
+    .sort((a, b) => Number(a.h.slice(1)) - Number(b.h.slice(1)))
+    .map(({ i }) => i);
+
+  const numCols = numberCols.slice(0, 6);
+  const addCol = numberCols.length >= 7 ? numberCols[6] : -1;
   const cCol = col("CONCURSO");
   const bCol = col("BOLSA");
   const fCol = col("FECHA");
