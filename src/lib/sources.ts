@@ -1,18 +1,10 @@
-import fs from "node:fs";
-import path from "node:path";
-import https from "node:https";
 import type { Draw, GameData, GameKey } from "./types";
+import { FALLBACK_CSV } from "./fallback-data";
 
 const ARHP: Record<GameKey, string> = {
   melate: "TQBlAGwAYQB0AGUA",
   revancha: "UgBlAHYAYQBuAGMAaABhAA==",
   revanchita: "UgBlAHYAYQBuAGMAaABpAHQAYQA=",
-};
-
-const FILES: Record<GameKey, string> = {
-  melate: "melate.csv",
-  revancha: "revancha.csv",
-  revanchita: "revanchita.csv",
 };
 
 const BASE = "https://www.pronosticos.gob.mx/Home/Historicos?ARHP=";
@@ -23,52 +15,17 @@ const cache = new Map<GameKey, { data: GameData; at: number }>();
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36";
 
-function httpsGet(url: string, rejectUnauthorized: boolean, timeout = 15000): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const req = https.get(
-      url,
-      { rejectUnauthorized, timeout, headers: { "User-Agent": USER_AGENT, Accept: "text/csv,*/*" } },
-      (res) => {
-        const status = res.statusCode ?? 0;
-        if (status >= 300 && status < 400 && res.headers.location) {
-          res.resume();
-          const next = new URL(res.headers.location, url).toString();
-          httpsGet(next, rejectUnauthorized, timeout).then(resolve, reject);
-          return;
-        }
-        if (status !== 200) {
-          res.resume();
-          reject(new Error(`HTTP ${status}`));
-          return;
-        }
-        let body = "";
-        res.setEncoding("utf8");
-        res.on("data", (chunk) => (body += chunk));
-        res.on("end", () => resolve(body));
-      }
-    );
-    req.on("timeout", () => req.destroy(new Error("timeout")));
-    req.on("error", reject);
-  });
-}
-
 async function fetchLive(game: GameKey): Promise<string> {
   const url = BASE + ARHP[game];
-  try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": USER_AGENT, Accept: "text/csv,*/*" },
-      cache: "no-store",
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
-    if (!text.includes("NPRODUCTO")) throw new Error("respuesta inesperada");
-    return text;
-  } catch {
-    const text = await httpsGet(url, false);
-    if (!text.includes("NPRODUCTO")) throw new Error("respuesta inesperada");
-    return text;
-  }
+  const res = await fetch(url, {
+    headers: { "User-Agent": USER_AGENT, Accept: "text/csv,*/*" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const text = await res.text();
+  if (!text.includes("NPRODUCTO")) throw new Error("respuesta inesperada");
+  return text;
 }
 
 export function parseCsv(text: string): Draw[] {
@@ -143,8 +100,9 @@ export function nextDrawDate(from: Date = new Date()): string {
 }
 
 function readFallback(game: GameKey): Draw[] {
-  const file = path.join(process.cwd(), "data", FILES[game]);
-  return parseCsv(fs.readFileSync(file, "utf8"));
+  const text = FALLBACK_CSV[game];
+  if (!text) throw new Error(`Sin datos de respaldo para ${game}`);
+  return parseCsv(text);
 }
 
 export async function getGameData(game: GameKey, force = false): Promise<GameData> {

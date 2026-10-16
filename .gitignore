@@ -2,6 +2,8 @@ node_modules
 .next
 out
 build
+.open-next
+.wrangler
 .DS_Store
 *.pem
 npm-debug.log*
