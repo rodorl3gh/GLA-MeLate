@@ -361,11 +361,11 @@ export default function MelateApp() {
               <div className="flex flex-col gap-4">
                 <div>
                   <p className="mb-2 font-display text-xs font-semibold uppercase tracking-wider text-text-secondary">
-                    Combinaciones
+                    Opciones a analizar
                   </p>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setCount((c) => Math.max(1, c - 1))}
+                      onClick={() => setCount((c) => Math.max(2, c - 1))}
                       className="flex h-9 w-9 items-center justify-center rounded-lg border border-obsidian-600/60 bg-obsidian-800/60 text-text-secondary transition hover:border-purple-500/50 hover:text-text-primary"
                     >
                       <Minus size={15} />
@@ -380,6 +380,10 @@ export default function MelateApp() {
                       <Plus size={15} />
                     </button>
                   </div>
+                  <p className="mt-1.5 text-[10px] leading-snug text-text-muted">
+                    Se generan {count} candidatas y se someten a una segunda
+                    evaluación para entregar solo la más probable.
+                  </p>
                 </div>
 
                 <div className="grid gap-2">
@@ -439,7 +443,7 @@ export default function MelateApp() {
                 ) : (
                   <>
                     <Sparkles size={18} className="transition-transform group-hover:rotate-12" />
-                    Generar números
+                    Generar jugada
                   </>
                 )}
               </button>
@@ -453,7 +457,7 @@ export default function MelateApp() {
         <section className="mb-8">
           <div className="mb-3 flex items-center gap-2">
             <span className="section-badge bg-blue-500/10 text-blue-300">
-              <Dices size={13} /> Combinaciones generadas
+              <Target size={13} /> Jugada recomendada
             </span>
           </div>
 
@@ -463,30 +467,35 @@ export default function MelateApp() {
                 <Dices size={24} />
               </div>
               <p className="font-display text-base font-semibold">
-                Aún no has generado números
+                Aún no tienes una jugada
               </p>
               <p className="max-w-md text-sm text-text-muted">
-                Elige una estrategia y presiona <span className="text-purple-300">Generar números</span>.
-                El sistema descargará el histórico oficial y calculará las combinaciones más
-                coherentes con las estadísticas.
+                Elige una estrategia y presiona <span className="text-purple-300">Generar jugada</span>.
+                El sistema genera varias candidatas, las vuelve a analizar en conjunto y entrega
+                únicamente la combinación más probable.
               </p>
             </div>
           ) : (
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="mx-auto grid max-w-2xl gap-3">
               {combos.map((combo, index) => (
                 <div
                   key={`${combo.numbers.join("-")}-${index}`}
-                  className="glass-card animate-fade-in-up p-4 hover:border-purple-500/40"
+                  className="glass-card animate-fade-in-up p-5 hover:border-purple-500/40"
                   style={{ animationDelay: `${index * 60}ms` }}
                 >
-                  <div className="mb-3 flex items-center justify-between">
-                    <span className="font-mono text-[11px] uppercase tracking-wider text-text-muted">
-                      Jugada #{index + 1}
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-purple-300">
+                      <Target size={12} /> Jugada final
                     </span>
                     <div className="flex items-center gap-2">
                       <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-2.5 py-0.5 font-mono text-[10px] text-purple-300">
                         Score {(combo.score * 100).toFixed(1)}
                       </span>
+                      {combo.consensus && (
+                        <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 font-mono text-[10px] text-emerald-300">
+                          confianza {Math.round(combo.consensus.confidence * 100)}%
+                        </span>
+                      )}
                       <button
                         onClick={() => copyCombo(combo, index)}
                         title="Copiar combinación"
@@ -539,6 +548,24 @@ export default function MelateApp() {
                       popularidad {Math.round(combo.metrics.popularity * 100)}%
                     </span>
                   </div>
+
+                  {combo.consensus && (
+                    <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-obsidian-700/50 pt-2.5 font-mono text-[10px] text-text-muted">
+                      <span>
+                        {combo.consensus.optionsAnalyzed} candidatas analizadas
+                      </span>
+                      <span className="text-obsidian-500">·</span>
+                      <span>rank etapa 1 #{combo.consensus.stage1Rank}</span>
+                      {combo.consensus.sharedNumbers.length > 0 && (
+                        <>
+                          <span className="text-obsidian-500">·</span>
+                          <span>
+                            consenso {combo.consensus.sharedNumbers.join(" ")}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

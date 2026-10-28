@@ -94,11 +94,20 @@ export interface ComboMetrics {
   popularity: number;
 }
 
+export interface ConsensusMetrics {
+  optionsAnalyzed: number;
+  confidence: number;
+  sharedNumbers: number[];
+  stage1Rank: number;
+  stage1Score: number;
+}
+
 export interface GeneratedCombo {
   numbers: number[];
   adicional?: number;
   score: number;
   metrics: ComboMetrics;
+  consensus?: ConsensusMetrics;
 }
 
 export interface GenerateResponse {

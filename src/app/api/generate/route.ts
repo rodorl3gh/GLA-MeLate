@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       window,
       includeAdicional,
       antiPopularity,
-    });
+    }, { pickSingle: true });
 
     return NextResponse.json({
       game,

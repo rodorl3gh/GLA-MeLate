@@ -2,6 +2,7 @@ import { computeStats, MAX_NUMBER } from "./statistics";
 import { popularityOf, popularityScore } from "./popularity";
 import type {
   ComboMetrics,
+  ConsensusMetrics,
   Draw,
   GameKey,
   GenerateRequest,
@@ -218,6 +219,112 @@ function additionalWeights(stats: StatsResult): number[] {
   return weights;
 }
 
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}
+
+function coherenceOf(combo: number[], stats: StatsResult): number {
+  const sum = combo.reduce((a, b) => a + b, 0);
+  const { mean, std } = stats.sum;
+  const denom = std > 0 ? 2 * std * std : 1;
+  const sumScore = Math.exp(-((sum - mean) ** 2) / denom);
+
+  const odds = combo.filter((n) => n % 2 === 1).length;
+  const parityScore = clamp01(1 - Math.abs(odds - stats.parity.mostCommon) / 3);
+
+  const low = combo.filter((n) => n <= 28).length;
+  const lowScore = clamp01(1 - Math.abs(low - stats.lowHigh.mostCommon) / 3);
+
+  const decades = new Array(6).fill(0);
+  for (const n of combo) decades[decadeIndex(n)]++;
+  const distinct = decades.filter((d) => d > 0).length;
+  const decadeScore = clamp01(
+    distinct / 6 - (Math.max(...decades) > 3 ? 0.3 : 0)
+  );
+
+  return (
+    0.42 * sumScore + 0.2 * parityScore + 0.16 * lowScore + 0.22 * decadeScore
+  );
+}
+
+/**
+ * Segunda etapa: vuelve a analizar las combinaciones ya generadas como conjunto
+ * (consenso entre opciones, coherencia estadística, sinergia de pares y
+ * anti-popularidad) y devuelve únicamente la más probable.
+ */
+export function selectMostProbable(
+  finalists: GeneratedCombo[],
+  stats: StatsResult,
+  antiPopularity: boolean
+): GeneratedCombo | null {
+  if (finalists.length === 0) return null;
+
+  const poolSize = finalists.length;
+  const freq = new Map<number, number>();
+  for (const c of finalists) {
+    for (const n of c.numbers) freq.set(n, (freq.get(n) ?? 0) + 1);
+  }
+
+  const stage1Order = [...finalists].sort((a, b) => b.score - a.score);
+  const stage1Rank = new Map<string, number>();
+  stage1Order.forEach((c, i) => stage1Rank.set(c.numbers.join("-"), i + 1));
+  const bestStage1 = stage1Order[0].score || 0.0001;
+
+  const scored = finalists.map((c) => {
+    const key = c.numbers.join("-");
+    const stage1 = clamp01(c.score / bestStage1);
+    const consensus =
+      c.numbers.reduce((a, n) => a + (freq.get(n) ?? 0) / poolSize, 0) / 6;
+    const coherence = coherenceOf(c.numbers, stats);
+    const pair = clamp01(c.metrics.pairScore);
+    const anti = antiPopularity ? clamp01(1 - c.metrics.popularity) : 0;
+
+    const weights = {
+      stage1: 0.45,
+      consensus: 0.25,
+      coherence: 0.14,
+      pair: 0.06,
+      anti: antiPopularity ? 0.1 : 0,
+    };
+    const totalWeight =
+      weights.stage1 + weights.consensus + weights.coherence + weights.pair + weights.anti;
+
+    const finalScore =
+      (weights.stage1 * stage1 +
+        weights.consensus * consensus +
+        weights.coherence * coherence +
+        weights.pair * pair +
+        weights.anti * anti) /
+      totalWeight;
+
+    return { combo: c, stage1, consensus, coherence, finalScore, rank: stage1Rank.get(key) ?? poolSize };
+  });
+
+  scored.sort((a, b) => b.finalScore - a.finalScore);
+  const winner = scored[0];
+  const runnerUp = scored[1];
+  const relativeMargin =
+    runnerUp && winner.finalScore > 0
+      ? clamp01((winner.finalScore - runnerUp.finalScore) / winner.finalScore)
+      : 0;
+  const confidence = clamp01(0.55 + 0.44 * Math.min(1, relativeMargin * 3));
+
+  const sharedNumbers = [...freq.entries()]
+    .filter(([, count]) => count / poolSize >= 0.5)
+    .sort((a, b) => b[1] - a[1] || a[0] - b[0])
+    .map(([n]) => n);
+
+  const consensus: ConsensusMetrics = {
+    optionsAnalyzed: poolSize,
+    confidence,
+    sharedNumbers,
+    stage1Rank: winner.rank,
+    stage1Score: clamp01(winner.stage1),
+  };
+
+  return { ...winner.combo, score: winner.finalScore, consensus };
+}
+
 export function generateCombos(
   game: GameKey,
   draws: Draw[],
@@ -225,7 +332,7 @@ export function generateCombos(
     GenerateRequest,
     "count" | "strategy" | "window" | "includeAdicional" | "antiPopularity"
   >,
-  opts: { candidateCount?: number } = {}
+  opts: { candidateCount?: number; pickSingle?: boolean } = {}
 ): { combos: GeneratedCombo[]; stats: StatsResult } {
   const stats = computeStats(game, draws, req.window);
   const w = buildWeights(stats, req.strategy, req.antiPopularity);
@@ -273,6 +380,12 @@ export function generateCombos(
   }
 
   selected.sort((a, b) => b.score - a.score);
+
+  if (opts.pickSingle) {
+    const winner = selectMostProbable(selected, stats, req.antiPopularity);
+    return { combos: winner ? [winner] : [], stats };
+  }
+
   return { combos: selected, stats };
 }
 
